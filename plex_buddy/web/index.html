@@ -71,7 +71,14 @@
   .recording .actions > * { flex: 1; padding: 0 12px; }
   .has { color: var(--good); }
   progress { width: 100%; height: 8px; margin-top: 10px; accent-color: var(--accent); }
-  .more { width: 100%; background: transparent; color: var(--muted); font-weight: 400; min-height: 44px; margin-top: 6px; }
+  .more { width: 100%; background: transparent; color: var(--muted); font-weight: 400; min-height: 40px; }
+  .chips { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 10px; padding: 2px; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chips button { flex: 0 0 auto; min-height: 36px; padding: 0 14px; border-radius: 18px; font-weight: 500; font-size: 14px; background: var(--card); border: 1px solid var(--line); }
+  .chips button.on { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .group { justify-content: space-between; align-items: baseline; font-weight: 650; padding-bottom: 2px; }
+  .group small { color: var(--muted); font-weight: 400; font-size: 13px; white-space: nowrap; }
+  .group + .row { border-top: 0; padding-top: 4px; }
   .empty, .help { color: var(--muted); font-size: 14px; }
   .help { margin-top: 24px; }
   .help b { color: var(--text); }
@@ -94,6 +101,7 @@
   </div>
 
   <h2>Recordings</h2>
+  <div id="shows" class="chips" hidden></div>
   <div id="recordings" class="card"><p class="empty">Loading…</p></div>
 
   <p class="help">
@@ -133,8 +141,10 @@
 const cards = new Map();       // card key -> {root, value, touched, ...}
 let limit = 2000;
 let failures = 0;
-let showAll = false;
 let lastRecordings = null;
+let showFilter = "";           // "" is every show, grouped
+const opened = new Set();      // shows whose group is unfolded in the grouped view
+try { showFilter = localStorage.getItem("buddy.show") || ""; } catch (error) {}
 
 const signed = ms => (ms > 0 ? "+" : ms < 0 ? "−" : "") + Math.abs(ms);
 
@@ -356,9 +366,11 @@ function element(tag, className, text) {
   return node;
 }
 
+const busy = recording => Boolean(recording.job && (recording.job.state === "running" || recording.job.state === "queued"));
+
 function recordingRow(recording) {
   const row = element("div", "row recording");
-  row.append(element("div", "device", recording.label));
+  row.append(element("div", "device", recording.episode || recording.label));
   const facts = element("div", "title");
   const added = new Date(recording.added * 1000).toLocaleDateString(undefined, {weekday: "short", month: "short", day: "numeric"});
   facts.append(added + " · " + clock(recording.duration) + " · ");
@@ -368,8 +380,8 @@ function recordingRow(recording) {
   row.append(facts);
 
   const job = recording.job;
-  const busy = job && (job.state === "running" || job.state === "queued");
-  if (busy) {
+  const working = busy(recording);
+  if (working) {
     const bar = element("progress");
     if (job.progress !== null) { bar.max = 1; bar.value = job.progress; }
     row.append(bar);
@@ -384,7 +396,7 @@ function recordingRow(recording) {
     link.href = "/sheets" + recording.sheet;
     actions.append(link);
   }
-  if (busy) {
+  if (working) {
     const cancel = element("button", "", "Cancel");
     cancel.addEventListener("click", async () => {
       if (!confirm("Stop making subtitles for " + recording.label + "?")) return;
@@ -411,15 +423,54 @@ function recordingRow(recording) {
 
 function renderRecordings(data) {
   const box = document.getElementById("recordings");
+  const chips = document.getElementById("shows");
   if (data.error && !data.recordings.length) {
+    chips.hidden = true;
     box.replaceChildren(element("p", "empty", "The list of recordings could not be read from Plex."));
     return;
   }
-  const rows = (showAll ? data.recordings : data.recordings.slice(0, 6)).map(recordingRow);
-  if (data.recordings.length > 6) {
-    const more = element("button", "more", showAll ? "Show fewer" : "Show " + (data.recordings.length - 6) + " more");
-    more.addEventListener("click", () => { showAll = !showAll; renderRecordings(data); });
-    rows.push(more);
+  // Shows in the order of their newest recording; the list arrives newest first.
+  const byShow = new Map();
+  for (const recording of data.recordings) {
+    const name = recording.show || "Other";
+    if (!byShow.has(name)) byShow.set(name, []);
+    byShow.get(name).push(recording);
+  }
+  if (showFilter && !byShow.has(showFilter)) showFilter = "";
+
+  chips.hidden = byShow.size < 2;
+  chips.replaceChildren(...["", ...byShow.keys()].map(name => {
+    const chip = element("button", name === showFilter ? "on" : "", name || "All shows");
+    chip.setAttribute("aria-pressed", String(name === showFilter));
+    chip.addEventListener("click", () => {
+      showFilter = name;
+      try { localStorage.setItem("buddy.show", name); } catch (error) {}
+      renderRecordings(data);
+    });
+    return chip;
+  }));
+
+  const rows = [];
+  if (showFilter) {
+    rows.push(...byShow.get(showFilter).map(recordingRow));
+  } else {
+    for (const [name, list] of byShow) {
+      const head = element("div", "row group");
+      head.append(element("span", "", name), element("small", "", list.length + (list.length === 1 ? " recording" : " recordings")));
+      rows.push(head);
+      // Folded, a show lists its two newest, and whatever is being made right now.
+      const unfolded = opened.has(name);
+      const shown = unfolded ? list : list.filter((recording, index) => index < 2 || busy(recording));
+      rows.push(...shown.map(recordingRow));
+      if (list.length > 2) {
+        const more = element("button", "more", unfolded ? "Show fewer" : "Show " + (list.length - shown.length) + " more");
+        more.addEventListener("click", () => {
+          if (unfolded) opened.delete(name); else opened.add(name);
+          renderRecordings(data);
+        });
+        rows.push(more);
+      }
+    }
   }
   box.replaceChildren(...rows);
 }
@@ -438,10 +489,7 @@ async function refreshRecordings() {
   }
 }
 
-function working() {
-  return Boolean(lastRecordings && lastRecordings.recordings.some(
-    r => r.job && (r.job.state === "running" || r.job.state === "queued")));
-}
+const anyBusy = () => Boolean(lastRecordings && lastRecordings.recordings.some(busy));
 
 refresh();
 refreshRecordings();
@@ -450,7 +498,7 @@ let ticks = 0;
 setInterval(() => {
   if (document.hidden) return;
   // Every 3 s while something is being made, every 15 s otherwise.
-  if (++ticks % (working() ? 1 : 5) === 0) refreshRecordings();
+  if (++ticks % (anyBusy() ? 1 : 5) === 0) refreshRecordings();
 }, 3000);
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) { refresh(); refreshRecordings(); return; }
