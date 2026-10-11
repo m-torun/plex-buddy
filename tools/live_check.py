@@ -149,23 +149,38 @@ def main():
         plex = Plex(args.plex_url, f.read().strip())
     buddy = Buddy(args.buddy_url)
     wanted = args.player.lower()
-    listed = [e for e in plex.get("/clients") if wanted in e.get("name", "").lower()]
-    if not listed:
-        sys.exit("Plex lists no player matching %r; its Plex app has to be open" % args.player)
-    name = listed[0].get("name")
-    player = Player(listed[0].get("host"), listed[0].get("port"), listed[0].get("machineIdentifier"))
-    if not player.answers():
+
+    def listed():
+        return [e for e in plex.get("/clients") if wanted in e.get("name", "").lower()]
+
+    def open_app(why):
         if not args.launch_url:
-            sys.exit("%s is listed by Plex but does not answer (a Roku behind its screensaver does this); "
-                     "pass --launch-url to open its Plex app" % name)
-        say("%s does not answer; opening its Plex app" % name)
+            sys.exit(why + "; pass --launch-url to open its Plex app")
+        say(why + "; opening its Plex app")
         urlopen(Request(args.launch_url, data=b"", method="POST"), timeout=10).read()
+
+    found = listed()
+    if not found:
+        # Plex lists a player only while its Plex app is running.
+        open_app("Plex lists no player matching %r" % args.player)
         waited = time.time()
-        while time.time() - waited < 30 and not player.answers():
-            time.sleep(1)
-        if not player.answers():
-            sys.exit("%s still does not answer %d s after opening its Plex app" % (name, time.time() - waited))
-        time.sleep(3)
+        while time.time() - waited < 60 and not found:
+            time.sleep(2)
+            found = listed()
+        if not found:
+            sys.exit("Plex still lists no player matching %r %d s after opening the app" % (args.player, time.time() - waited))
+    name = found[0].get("name")
+    player = Player(found[0].get("host"), found[0].get("port"), found[0].get("machineIdentifier"))
+    if not player.answers():
+        # A Roku behind its screensaver is listed but does not serve requests.
+        open_app("%s is listed by Plex but does not answer" % name)
+    waited = time.time()
+    while time.time() - waited < 30 and not player.answers():
+        time.sleep(1)
+    if not player.answers():
+        sys.exit("%s does not answer %d s after its Plex app was opened" % (name, time.time() - waited))
+    if time.time() - began > 2:
+        time.sleep(3)          # just opened: let the app finish starting before it is given a command
     state, _ = player.video()
     if state in ("playing", "paused", "buffering"):
         sys.exit("%s is %s something; not interrupting it" % (name, state))
