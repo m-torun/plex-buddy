@@ -143,6 +143,7 @@ let limit = 2000;
 let failures = 0;
 let lastRecordings = null;
 let showFilter = "";           // "" is every show, grouped
+let revealChip = true;         // scroll the row of shows to the chosen one at the next drawing
 const opened = new Set();      // shows whose group is unfolded in the grouped view
 try { showFilter = localStorage.getItem("buddy.show") || ""; } catch (error) {}
 
@@ -444,11 +445,19 @@ function renderRecordings(data) {
     chip.setAttribute("aria-pressed", String(name === showFilter));
     chip.addEventListener("click", () => {
       showFilter = name;
+      revealChip = true;
       try { localStorage.setItem("buddy.show", name); } catch (error) {}
       renderRecordings(data);
     });
     return chip;
   }));
+  // Bring the chosen show into view once, not on every refresh, so the row can be scrolled freely.
+  const chosen = chips.querySelector(".on");
+  if (revealChip && chosen && !chips.hidden) {
+    const from = chips.getBoundingClientRect(), at = chosen.getBoundingClientRect();
+    if (at.left < from.left || at.right > from.right) chips.scrollLeft += at.left - from.left - 12;
+    revealChip = false;
+  }
 
   const rows = [];
   if (showFilter) {

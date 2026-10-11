@@ -4,7 +4,7 @@ One web page for the helpers that run next to Plex Media Server. Open it on your
 
 - **Now playing.** Each stream shows what is playing and on which player, a control to shift its audio earlier or later, and a button for that episode's cheat sheet when it has one.
 - **Saved audio offsets** for the players that are not playing right now.
-- **Recordings.** The newest recordings, whether each has subtitles and a cheat sheet, and a button to make what is missing, with progress while it runs.
+- **Recordings.** The newest recordings grouped by show, or filtered to one show, whether each has subtitles and a cheat sheet, and a button to make what is missing, with progress while it runs.
 
 plex-buddy has no logic of its own. It serves the page and passes the page's requests on to two daemons on the same machine:
 
@@ -25,12 +25,20 @@ or on the server itself:
 
     sudo ./install.sh install --name plex
 
-This puts the code in `/opt/plex-buddy`, runs it as the systemd service `plex-buddy` on port 8780, and, with `--name`, makes `http://plex/` open the page:
+This puts the code in `/opt/plex-buddy`, runs it as the systemd service `plex-buddy` on port 8780, and, with `--name`, makes `http://plex/` and `http://plex.local/` open the page:
 
-- On a machine that runs Pi-hole, it adds a local DNS record for the name. Every device that uses that Pi-hole for DNS can then resolve it.
+- On a machine that runs Pi-hole 5, it adds a local DNS record for the name. Every device that uses that Pi-hole for DNS can then resolve it.
+- On a machine that runs Avahi, a second small service, `plex-buddy-name`, announces `plex.local` over Bonjour (mDNS).
 - On a machine where lighttpd holds port 80 (Pi-hole's admin page does), it adds a rule that passes requests for that name on to plex-buddy. The admin page is unaffected.
 
-Without Pi-hole or lighttpd the installer says what to set up yourself. The page is always reachable at `http://<server>:8780/`.
+Without Pi-hole, Avahi or lighttpd the installer says what is missing. The page is always reachable at `http://<server>:8780/`.
+
+Which address to use:
+
+- `http://plex.local/` works on Apple devices and most others without any DNS server being involved. Prefer it.
+- `http://plex/` works only while a device gets its answer from the Pi-hole. If the device also has a second DNS server (many routers hand out themselves), one lookup that goes there comes back as "no such name", and the device remembers that for a while.
+
+Installing again after a code change leaves the DNS record, the Bonjour name and the web server rule alone when they are already as wanted. Pi-hole is told to reload only when the record changes, and the installer then checks that it still answers, because every device on the network depends on it.
 
 Other options: `--port N`, `--address IP` (what the name points to), `--offset-url URL`, `--context-url URL`.
 
@@ -41,7 +49,7 @@ There is no login, and the page shows what is being watched and can start a half
 ## How it fits together
 
     phone ──▶ plex-buddy :8780 ──▶ plex-audio-offset 127.0.0.1:8765
-     (http://plex/ via port 80)  └▶ plex-cc-fixer     127.0.0.1:8766
+     (by name via port 80)       └▶ plex-cc-fixer     127.0.0.1:8766
 
 - `GET /` is the page. `GET /api/state` returns both daemons' view of what is playing, with `null` for one that does not answer; the page pairs the two by player.
 - `POST /api/offset/offset`, `/forget`, `/tuning` go to plex-audio-offset.
@@ -66,5 +74,6 @@ It uses only the Python standard library and keeps no state, so the service runs
 | --- | --- |
 | `/opt/plex-buddy/` | the code, and `name` holding the installed name |
 | `/etc/systemd/system/plex-buddy.service` | the service |
+| `/etc/systemd/system/plex-buddy-name.service` | announces the `.local` name, when Avahi is present |
 | `/etc/pihole/custom.list` | one line for the name, when Pi-hole is present |
 | `/etc/lighttpd/external.conf` | the block between `# plex-buddy:start` and `# plex-buddy:end`, when lighttpd is present |
