@@ -80,7 +80,7 @@
   .group small { color: var(--muted); font-weight: 400; font-size: 13px; white-space: nowrap; }
   .group + .row { border-top: 0; padding-top: 4px; }
   .empty, .help { color: var(--muted); font-size: 14px; }
-  .help { margin-top: 24px; }
+  .help { margin: 12px 4px 0; }
   .help b { color: var(--text); }
   .alert { background: var(--accent); color: var(--accent-text); border-radius: 12px; padding: 10px 14px; margin-bottom: 14px; font-size: 14px; font-weight: 600; }
   [hidden] { display: none !important; }
@@ -99,11 +99,6 @@
     <h2>Saved audio offsets</h2>
     <div id="clients" class="card"></div>
   </div>
-
-  <h2>Recordings</h2>
-  <div id="shows" class="chips" hidden></div>
-  <div id="recordings" class="card"><p class="empty">Loading…</p></div>
-
   <p class="help">
     <b>Sound arrives after the lips move?</b> Go earlier (minus).<br>
     <b>Sound arrives before the lips move?</b> Go later (plus).<br>
@@ -112,6 +107,10 @@
     already holds that much of the stream. Keep this page open while tuning:
     it keeps that wait short.
   </p>
+
+  <h2>Recordings</h2>
+  <div id="shows" class="chips" hidden></div>
+  <div id="recordings" class="card"><p class="empty">Loading…</p></div>
 </main>
 
 <template id="session-template">
@@ -400,20 +399,26 @@ function recordingRow(recording) {
   if (working) {
     const cancel = element("button", "", "Cancel");
     cancel.addEventListener("click", async () => {
-      if (!confirm("Stop making subtitles for " + recording.label + "?")) return;
+      const making = job.make === "sheet" ? "the cheat sheet" : "subtitles";
+      if (!confirm("Stop making " + making + " for " + recording.label + "?")) return;
       await post("/api/jobs/cancel", {id: job.id}).catch(error => window.alert(error.message));
       refreshRecordings();
     });
     actions.append(cancel);
   } else if (!recording.subtitles || !recording.sheet) {
-    const what = !recording.subtitles && !recording.sheet ? "subtitles and cheat sheet"
-      : !recording.subtitles ? "subtitles" : "cheat sheet";
+    // With subtitles already there, only the cheat sheet is made and the subtitles are left alone.
+    const kind = recording.subtitles ? "sheet" : "all";
+    const what = kind === "sheet" ? "cheat sheet" : recording.sheet ? "subtitles" : "subtitles and cheat sheet";
+    const ask = kind === "sheet"
+      ? "Make a cheat sheet for " + recording.label + "? The subtitles stay as they are. " +
+        "It takes about 25 minutes, because the recording is listened to first, and keeps the server busy."
+      : "Make " + (recording.sheet ? "subtitles" : "subtitles and a cheat sheet") + " for " + recording.label +
+        "? It takes about half an hour and keeps the server busy.";
     const make = element("button", "", job && job.state === "failed" ? "Try again" : "Make " + what);
     make.addEventListener("click", async () => {
-      if (!confirm("Make subtitles and a cheat sheet for " + recording.label +
-                   "? It takes about half an hour and keeps the server busy.")) return;
+      if (!confirm(ask)) return;
       make.disabled = true;
-      await post("/api/jobs", {key: recording.key}).catch(error => window.alert(error.message));
+      await post("/api/jobs", {key: recording.key, make: kind}).catch(error => window.alert(error.message));
       refreshRecordings();
     });
     actions.append(make);
