@@ -51,6 +51,7 @@ class BuddyTest(unittest.TestCase):
             ("GET", "/api/now"): (200, "application/json", b'{"playing": [], "error": null}'),
             ("GET", "/api/recordings"): (200, "application/json", b'{"recordings": [], "error": null}'),
             ("POST", "/api/jobs"): (200, "application/json", b'{"id": 7, "state": "queued"}'),
+            ("POST", "/api/seek"): (200, "application/json", b'{"player": "TV", "position": 61.0}'),
             ("GET", "/Show/Season%201/Ep%3B%20one.html"): (200, "text/html; charset=utf-8", b"<h1>sheet</h1>"),
         })
         self.start_buddy("http://127.0.0.1:%d" % self.offset.server_port)
@@ -113,6 +114,12 @@ class BuddyTest(unittest.TestCase):
         status, _, body = self.call("/api/jobs", b'{"key": "2213"}')
         self.assertEqual((status, json.loads(body)["state"]), (200, "queued"))
         self.assertEqual(self.context_seen.seen[-1], ("POST", "/api/jobs", b'{"key": "2213"}'))
+
+    def test_a_sheet_pages_requests_go_to_the_context_daemon(self):
+        self.assertEqual(self.call("/api/now")[0], 200)
+        seek = b'{"key": "2213", "client": "abc", "position": 61}'
+        self.assertEqual(self.call("/api/seek", seek)[0], 200)
+        self.assertEqual(self.context_seen.seen[-1], ("POST", "/api/seek", seek))
 
     def test_sheet_pages_come_from_the_context_daemon(self):
         status, content_type, body = self.call("/sheets/Show/Season%201/Ep%3B%20one.html")

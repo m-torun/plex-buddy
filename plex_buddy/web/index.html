@@ -411,7 +411,7 @@ function recordingRow(recording) {
     const what = kind === "sheet" ? "cheat sheet" : recording.sheet ? "subtitles" : "subtitles and cheat sheet";
     const ask = kind === "sheet"
       ? "Make a cheat sheet for " + recording.label + "? The subtitles stay as they are. " +
-        "It takes about 25 minutes, because the recording is listened to first, and keeps the server busy."
+        "It takes a few minutes."
       : "Make " + (recording.sheet ? "subtitles" : "subtitles and a cheat sheet") + " for " + recording.label +
         "? It takes about half an hour and keeps the server busy.";
     const make = element("button", "", job && job.state === "failed" ? "Try again" : "Make " + what);

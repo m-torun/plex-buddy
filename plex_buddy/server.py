@@ -28,6 +28,8 @@ PASSED_ON = {
     ("POST", "/api/offset/forget"): ("offset", "/api/forget"),
     ("POST", "/api/offset/tuning"): ("offset", "/api/tuning"),
     ("GET", "/api/recordings"): ("context", "/api/recordings"),
+    ("GET", "/api/now"): ("context", "/api/now"),      # for the cheat sheet pages: is this recording playing,
+    ("POST", "/api/seek"): ("context", "/api/seek"),   # and jump its playback to a part
     ("POST", "/api/jobs"): ("context", "/api/jobs"),
     ("POST", "/api/jobs/cancel"): ("context", "/api/jobs/cancel"),
 }
