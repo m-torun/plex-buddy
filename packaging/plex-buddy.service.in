@@ -1,0 +1,18 @@
+[Unit]
+Description=plex-buddy: one page for the Plex helper daemons (no login; keep it on the local network)
+After=network.target
+
+[Service]
+# It holds no state and reads nothing but its own files, so it gets a throwaway user.
+DynamicUser=yes
+WorkingDirectory=@PREFIX@
+ExecStart=@PYTHON@ -m plex_buddy.server --port @PORT@ --offset-url @OFFSET_URL@ --context-url @CONTEXT_URL@
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
