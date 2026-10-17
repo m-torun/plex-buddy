@@ -30,6 +30,7 @@ PASSED_ON = {
     ("GET", "/api/recordings"): ("context", "/api/recordings"),
     ("GET", "/api/now"): ("context", "/api/now"),      # for the cheat sheet pages: is this recording playing,
     ("POST", "/api/seek"): ("context", "/api/seek"),   # and jump its playback to a part
+    ("POST", "/api/playback"): ("context", "/api/playback"),  # and pause or resume it
     ("POST", "/api/jobs"): ("context", "/api/jobs"),
     ("POST", "/api/jobs/cancel"): ("context", "/api/jobs/cancel"),
 }

@@ -131,6 +131,8 @@ def main():
     parser.add_argument("--expect-sheet", action="store_true", help="fail unless the item's cheat sheet is offered")
     parser.add_argument("--seek", type=float, help="also jump playback to this many seconds, the way a cheat sheet's "
                                                    "Play button does, and check that the player lands there")
+    parser.add_argument("--pause-first", action="store_true", help="pause playback before the jump, as when reading "
+                                                                    "the sheet during a commercial break")
     parser.add_argument("--no-offset", action="store_true", help="leave the audio offset alone")
     parser.add_argument("--launch-url", help="URL to POST to open the player's Plex app when it does not answer, "
                                              "for a Roku: http://<roku>:8060/launch/13535")
@@ -229,16 +231,23 @@ def main():
                 if args.expect_sheet:
                     check(bool(context["sheet"]), "the cheat sheet is offered")
                 if args.seek is not None:
+                    if args.pause_first:
+                        player.send("/player/playback/pause", {"type": "video"})
+                        waited = time.time()
+                        while time.time() - waited < 10 and player.video()[0] != "paused":
+                            time.sleep(0.5)
+                        check(player.video()[0] == "paused", "paused before the jump")
                     answer = buddy.post("/api/seek", {"key": str(args.rating_key), "client": player.client_id, "position": args.seek})
-                    since, landed = time.time(), None
+                    since, landed, last = time.time(), None, ("", None)
                     while time.time() - since < 30 and landed is None:
-                        state, position = player.video()
+                        last = state, position = player.video()
                         if state == "playing" and position is not None and args.seek - 2 <= position <= args.seek + 30:
                             landed = position
                         else:
                             time.sleep(1)
-                    check(landed is not None, "jump to %.0f s on %s: playing at %s s, %.0f s after the request" % (
-                        args.seek, answer.get("player"), "%.0f" % landed if landed is not None else "?", time.time() - since))
+                    check(landed is not None, "jump to %.0f s on %s: %s at %s s, %.0f s after the request" % (
+                        args.seek, answer.get("player"), last[0] or "no state", "%.0f" % last[1] if last[1] is not None else "?",
+                        time.time() - since))
                 if not args.no_offset and check(session["adjustable"], "the stream can be shifted" + ("" if session["adjustable"] else ": " + session["reason"])):
                     for target in (saved + args.step, saved):
                         buddy.post("/api/offset/offset", {"session": session["id"], "offset_ms": target})

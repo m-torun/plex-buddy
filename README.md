@@ -54,7 +54,7 @@ There is no login, and the page shows what is being watched and can start a half
 - `GET /` is the page. `GET /api/state` returns both daemons' view of what is playing, with `null` for one that does not answer; the page pairs the two by player.
 - `POST /api/offset/offset`, `/forget`, `/tuning` go to plex-audio-offset.
 - `GET /api/recordings`, `POST /api/jobs` and `/api/jobs/cancel` go to plex-cc-fixer.
-- `GET /api/now` and `POST /api/seek` go there too. The cheat sheet pages use them: each part has a Play button that jumps the playback to it while the recording is playing.
+- `GET /api/now`, `POST /api/seek` and `POST /api/playback` go there too. The cheat sheet pages use them: each part has a Play button that jumps the playback to it while the recording is playing, and a Pause button beside it.
 - `GET /sheets/<path>.html` shows a cheat sheet page from plex-cc-fixer.
 - Nothing else is passed on.
 
