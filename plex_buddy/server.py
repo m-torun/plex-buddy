@@ -89,7 +89,7 @@ class Handler(BaseHTTPRequestHandler):
         if not 0 <= length <= MAX_BODY:
             return self.reply(400, "application/json", b'{"error": "request too large"}')
         daemon, target = PASSED_ON[("POST", path)]
-        self.reply(*self.ask(daemon, target, "POST", self.rfile.read(length), timeout=20))
+        self.reply(*self.ask(daemon, target, "POST", self.rfile.read(length), timeout=60))
 
     def reply(self, status, content_type, body):
         self.send_response(status)
